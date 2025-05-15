@@ -61,8 +61,8 @@ app.post('/signup', async (req, res) => {
             return res.status(409).json({ message: "User already registered" });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ fullName, userName, email, password: hashedPassword });
+        // const hashedPassword = await bcrypt.hash(password, 10);
+        const newUser = new User({ fullName, userName, email, password });
 
         await newUser.save();
         res.status(201).json({ 
@@ -90,7 +90,8 @@ app.post('/login', async (req, res) => {
             return res.status(404).json({ message: "User does not exist" });
         }
 
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+        //const isPasswordValid = await bcrypt.compare(password, user.password);
+        const isPasswordValid = password === user.password;
         if (!isPasswordValid) {
             return res.status(401).json({ message: "Wrong password" });
         }
