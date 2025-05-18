@@ -6,8 +6,8 @@ const transporter = nodemailer.createTransport({
     secure: true,
     port: 465,
     auth: {
-        user: "pshubh619@gmail.com",
-        pass: "hpud ykut qjlv hoag"
+        user: "ieducation.hub.2013@gmail.com",
+        pass: "rryt kazz qryn osce"
     }
 });
 
@@ -69,7 +69,7 @@ async function sendEmails(studentsToEmail, emailSubject, emailText) {
             const fullMessage = `${emailText}\n\nName: ${student.name}\nRoll No: ${student.rollNo}${marksText}`;
 
             const mailOptions = {
-                from: "pshubh619@gmail.com",
+                from: "ieducation.hub.2013@gmail.com",
                 to: student.email,
                 subject: emailSubject,
                 text: fullMessage
