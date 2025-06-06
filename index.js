@@ -23,7 +23,7 @@ mongoose.connect(dbUrl, {
 /* -------------- User Schema & Model -------------- */
 const userSchema = new mongoose.Schema({
     fullName: { type: String, required: true },
-    userName: { type: String, required: true, unique: true },
+    mobile: { type: String, required: true , unique: true},
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     classIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Class" }] // Stores class IDs
@@ -32,16 +32,21 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 
 /* -------------- Class Schema & Model -------------- */
+
+const studentSchema = new mongoose.Schema({
+  rollNo: { type: Number },
+  name: { type: String },
+  surname: { type: String, },
+  parent: { type: String },
+  mobile: { type: String },
+  email1: { type: String },
+  email2: { type: String }
+});
+
 const classSchema = new mongoose.Schema({
     className: { type: String, required: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    students: [{
-        rollNo: { type: Number, required: true },
-        name: { type: String, required: true },
-        parent: { type: String, required: true },
-        mobile: { type: String, required: true },
-        email: { type: String, required: true }
-    }]
+    students: [studentSchema]
 });
 
 
@@ -50,19 +55,19 @@ const Class = mongoose.model('Class', classSchema);
 /* -------------- Signup API -------------- */
 app.post('/signup', async (req, res) => {
     try {
-        const { fullName, userName, email, password } = req.body;
+        const { fullName, userName, mobile, email, password } = req.body;
 
-        if (!fullName || !userName || !email || !password) {
+        if (!fullName || !mobile || !email || !password) {
             return res.status(400).json({ message: "All fields are required" });
         }
 
-        const existingUser = await User.findOne({ $or: [{ email }, { userName }] });
+        const existingUser = await User.findOne({ $or: [{ email }, { mobile }] });
         if (existingUser) {
             return res.status(409).json({ message: "User already registered" });
         }
 
         // const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ fullName, userName, email, password });
+        const newUser = new User({ fullName, userName, mobile, email, password });
 
         await newUser.save();
         res.status(201).json({ 
@@ -79,27 +84,31 @@ app.post('/signup', async (req, res) => {
 /* -------------- Login API -------------- */
 app.post('/login', async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { login, password } = req.body; // renamed from `email` to `login`
 
-        if (!email || !password) {
-            return res.status(400).json({ message: "Email and password are required" });
+        if (!login || !password) {
+            return res.status(400).json({ message: "Login and password are required" });
         }
 
-        const user = await User.findOne({ email });
+        // Check if login is an email or mobile number
+        const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(login);
+        const query = isEmail ? { email: login } : { mobile: login };
+
+        const user = await User.findOne(query);
         if (!user) {
             return res.status(404).json({ message: "User does not exist" });
         }
 
-        //const isPasswordValid = await bcrypt.compare(password, user.password);
+        // If you are using bcrypt, replace this with bcrypt.compare
         const isPasswordValid = password === user.password;
         if (!isPasswordValid) {
             return res.status(401).json({ message: "Wrong password" });
         }
 
-        res.status(200).json({ 
-            message: "Login successful", 
+        res.status(200).json({
+            message: "Login successful",
             fullName: user.fullName,
-            userId: user._id 
+            userId: user._id
         });
 
     } catch (error) {
@@ -191,9 +200,9 @@ app.get('/get-students/:classId', async (req, res) => {
 /* -------------- Add Student API -------------- */
 app.post('/add-student', async (req, res) => {
     try {
-        let { rollNo, name, parent, mobile, email, classId } = req.body;
+        let { rollNo, name, surname, parent, mobile, email1, email2, classId } = req.body;
 
-        if (!rollNo || !name || !parent || !mobile || !email || !classId) {
+        if (!rollNo || !name || !surname || !parent || !mobile || !email1 || !classId) {
             return res.status(400).json({ message: "All fields are required" });
         }
 
@@ -211,11 +220,12 @@ app.post('/add-student', async (req, res) => {
             return res.status(409).json({ message: "Student with this roll number already exists in this class" });
         }
 
+        // console.log({ rollNo, name, surname, parent, mobile, email1, email2,classId});
         // Add new student
-        classData.students.push({ rollNo, name, parent, mobile, email });
+        classData.students.push({ rollNo, name, surname, parent, mobile, email1, email2 });
         await classData.save();
 
-        res.status(201).json({ message: "Student added successfully", student: { rollNo, name, parent, mobile, email } });
+        res.status(201).json({ message: "Student added successfully", student: { rollNo, name, surname, parent, mobile, email1, email2 } });
 
     } catch (error) {
         console.error("Add Student Error:", error);
