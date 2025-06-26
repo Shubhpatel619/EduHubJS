@@ -14,7 +14,7 @@ const dbUrl = 'mongodb+srv://EducationHub:EducationHub@cluster0.dnndllo.mongodb.
 const PORT = 4000;
 const MONGO_URI = 'mongodb://localhost:27017/EduHubMarks';
 
-mongoose.connect(MONGO_URI, {
+mongoose.connect(dbUrl, {
     useNewUrlParser: true,
     useUnifiedTopology: true
 }).then(() => console.log('MongoDB Connected'))
