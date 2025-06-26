@@ -2,7 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const cors = require('cors');
-const { sendEmails } = require("./email");
+const { sendEmails, sendOtpEmail } = require("./email");
 
 const app = express();
 app.use(express.json());
@@ -14,7 +14,7 @@ const dbUrl = 'mongodb+srv://EducationHub:EducationHub@cluster0.dnndllo.mongodb.
 const PORT = 4000;
 const MONGO_URI = 'mongodb://localhost:27017/EduHubMarks';
 
-mongoose.connect(dbUrl, {
+mongoose.connect(MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true
 }).then(() => console.log('MongoDB Connected'))
@@ -74,6 +74,28 @@ app.post('/signup', async (req, res) => {
             message: "User registered successfully",
             userId: newUser._id 
         });
+
+    } catch (error) {
+        console.error("Signup Error:", error);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+});
+
+/* -------------- Verify User API -------------- */
+app.post('/verifyUser', async (req, res) => {
+    try {
+        const { fullName, mobile, email, password } = req.body;
+
+        if (!fullName || !mobile || !email || !password) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+
+        const existingUser = await User.findOne({ $or: [{ email }, { mobile }] });
+        if (existingUser) {
+            return res.status(409).json({ message: "User already registered" });
+        } else{
+            return res.status(200).json({message: "User Does Not Exist"})
+        }
 
     } catch (error) {
         console.error("Signup Error:", error);
@@ -178,6 +200,33 @@ app.delete('/delete-class/:classId/:userId', async (req, res) => {
     }
 });
 
+/* -------------- Update Class API -------------- */
+app.put('/update-class/:classId', async (req, res) => {
+    const { classId } = req.params;
+    const { className } = req.body;
+
+    if (!className) {
+        return res.status(400).json({ message: "New class name is required" });
+    }
+
+    try {
+        const updatedClass = await Class.findByIdAndUpdate(
+            classId,
+            { className },
+            { new: true }
+        );
+
+        if (!updatedClass) {
+            return res.status(404).json({ message: "Class not found" });
+        }
+
+        res.status(200).json({ message: "Class updated successfully", updatedClass });
+    } catch (error) {
+        console.error("Update error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
 /* -------------- Get Students API -------------- */
 app.get('/get-students/:classId', async (req, res) => {
     try {
@@ -233,6 +282,58 @@ app.post('/add-student', async (req, res) => {
     }
 });
 
+/* -------------- Update Student API -------------- */
+app.put('/update-student/:classId/:studentId', async (req, res) => {
+    try {
+        const { classId, studentId } = req.params;
+        let { rollNo, name, parent, mobile, email1, email2 } = req.body;
+
+        if (!rollNo || !name || !parent || !mobile || !email1) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+
+        const classData = await Class.findById(classId);
+        if (!classData) {
+            return res.status(404).json({ message: "Class not found" });
+        }
+
+        rollNo = parseInt(rollNo, 10);
+
+        // Find the student in the class by _id
+        const studentIndex = classData.students.findIndex(student => student._id.toString() === studentId);
+        if (studentIndex === -1) {
+            return res.status(404).json({ message: "Student not found in this class" });
+        }
+
+        // Check for duplicate rollNo (except current student)
+        const duplicateRoll = classData.students.find(
+            (student, index) =>
+                student.rollNo === rollNo && student._id.toString() !== studentId
+        );
+        if (duplicateRoll) {
+            return res.status(409).json({ message: "Another student with this roll number already exists" });
+        }
+
+        // Update student fields
+        classData.students[studentIndex] = {
+            ...classData.students[studentIndex]._doc,
+            rollNo,
+            name,
+            parent,
+            mobile,
+            email1,
+            email2
+        };
+
+        await classData.save();
+
+        res.status(200).json({ message: "Student updated successfully" });
+
+    } catch (error) {
+        console.error("Update Student Error:", error);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+});
 
 
 /* -------------- Delete Student API -------------- */
@@ -257,6 +358,7 @@ app.delete('/delete-student/:classId/:rollNo', async (req, res) => {
 });
 
 
+/* -------------- Send Email API -------------- */
 app.post("/send-email", async (req, res) => {
     try {
         const { classId, selectedStudents, emailSubject, emailText } = req.body;
@@ -266,27 +368,90 @@ app.post("/send-email", async (req, res) => {
             return res.status(404).json({ message: "Class not found." });
         }
 
-        // Match selected students with emails from DB
-        const studentsToEmail = selectedStudents.map(s => {
+        // Collect all valid emails (email1 and email2 if available)
+        const studentsToEmail = [];
+
+        selectedStudents.forEach(s => {
             const dbStudent = classData.students.find(std => std.rollNo === s.rollNo);
-            return {
-                ...s,
-                name: dbStudent?.name || "Unknown",
-                email: dbStudent?.email || null
-            };
+            if (!dbStudent) return;
+
+            if (dbStudent.email1) {
+                studentsToEmail.push({
+                    ...s,
+                    name: dbStudent.name || "Unknown",
+                    email: dbStudent.email1
+                });
+            }
+
+            if (dbStudent.email2) {
+                studentsToEmail.push({
+                    ...s,
+                    name: dbStudent.name || "Unknown",
+                    email: dbStudent.email2
+                });
+            }
         });
 
-        const filtered = studentsToEmail.filter(s => s.email);
-        if (filtered.length === 0) {
+        if (studentsToEmail.length === 0) {
             return res.status(404).json({ message: "No student emails found." });
         }
 
-        await sendEmails(filtered, emailSubject, emailText);
+        await sendEmails(studentsToEmail, emailSubject, emailText);
 
-        res.status(200).json({ message: "Emails sent successfully!" });
     } catch (error) {
         console.error("Send Email Error:", error);
         res.status(500).json({ message: "Internal Server Error" });
+    }
+     res.status(200).json({ message: "Emails sent successfully!" });
+});
+
+
+// In-memory OTP store
+const otpStore = new Map();
+
+// Generate 6-digit OTP
+function generateOTP() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+/* -------------- Send OTP -------------- */
+app.post("/send-otp", async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email is required." });
+
+    const otp = generateOTP();
+    const expiresAt = Date.now() + 5 * 60 * 1000;
+
+    otpStore.set(email, { otp, expiresAt });
+
+    try {
+        await sendOtpEmail(email, otp); // Call to email.js
+        res.status(200).json({ message: "OTP sent successfully." });
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({ message: "Failed to send OTP email." });
+    }
+});
+
+/* -------------- Verify OTP -------------- */
+app.post("/verify-otp", (req, res) => {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+        return res.status(400).json({ message: "Email and OTP are required." });
+    }
+
+    const entry = otpStore.get(email);
+    if (!entry) {
+        return res.status(401).json({ message: "Invalid or expired OTP." });
+    }
+
+    const isValid = entry.otp === otp && Date.now() < entry.expiresAt;
+
+    if (isValid) {
+        otpStore.delete(email); // OTP is valid only once
+        return res.status(200).json({ message: "OTP verified successfully." });
+    } else {
+        return res.status(401).json({ message: "Invalid or expired OTP." });
     }
 });
 
