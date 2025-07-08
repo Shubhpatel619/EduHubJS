@@ -286,9 +286,9 @@ app.post('/add-student', async (req, res) => {
 app.put('/update-student/:classId/:studentId', async (req, res) => {
     try {
         const { classId, studentId } = req.params;
-        let { rollNo, name, parent, mobile, email1, email2 } = req.body;
+        let { rollNo, name, surname, parent, mobile, email1, email2 } = req.body;
 
-        if (!rollNo || !name || !parent || !mobile || !email1) {
+        if (!rollNo || !name || !surname || !parent || !mobile || !email1) {
             return res.status(400).json({ message: "All fields are required" });
         }
 
@@ -319,6 +319,7 @@ app.put('/update-student/:classId/:studentId', async (req, res) => {
             ...classData.students[studentIndex]._doc,
             rollNo,
             name,
+            surname,
             parent,
             mobile,
             email1,
