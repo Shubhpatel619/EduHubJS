@@ -14,7 +14,7 @@ const dbUrl = 'mongodb+srv://EducationHub:EducationHub@cluster0.dnndllo.mongodb.
 const PORT = 4000;
 const MONGO_URI = 'mongodb://localhost:27017/EduHubMarks';
 
-mongoose.connect(dbUrl, {
+mongoose.connect(MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true
 }).then(() => console.log('MongoDB Connected'))
@@ -237,7 +237,21 @@ app.get('/get-students/:classId', async (req, res) => {
             return res.status(404).json({ message: "Class not found" });
         }
 
-        res.json(classData.students.sort((a, b) => a.rollNo - b.rollNo));
+        // Sort students by rollNo and pick only necessary fields
+        const sortedStudents = classData.students
+            .sort((a, b) => a.rollNo - b.rollNo)
+            .map(student => ({
+                _id: student._id,
+                rollNo: student.rollNo,
+                name: student.name,
+                surname: student.surname,
+                parent: student.parent,
+                mobile: student.mobile,
+                email1: student.email1,
+                email2: student.email2
+            }));
+
+        res.json(sortedStudents);
 
     } catch (error) {
         console.error("Get Students Error:", error);
