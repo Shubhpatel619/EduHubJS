@@ -7,7 +7,7 @@ const transporter = nodemailer.createTransport({
     port: 465,
     auth: {
         user: "ieducation.hub.2013@gmail.com",
-        pass: "rryt kazz qryn osce"
+        pass: "ssox qvhj knrs lvov"
     }
 });
 
@@ -67,3 +67,6 @@ module.exports = {
     sendEmails,
     sendOtpEmail
 };
+
+
+//fbqk qtgt ells fgzo     (app password)
